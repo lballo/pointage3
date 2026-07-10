@@ -13,24 +13,53 @@ export const T = {
 const API = `https://api.airtable.com/v0/${BASE_ID}`;
 
 async function atFetch(chemin, options = {}, tentative = 0) {
+  const token = process.env.AIRTABLE_TOKEN?.trim();
+
+  console.log('Diagnostic Airtable', {
+    tokenPresent: Boolean(token),
+    tokenPrefix: token?.slice(0, 3),
+    tokenLength: token?.length,
+    hasLeadingSpace: process.env.AIRTABLE_TOKEN
+      ? process.env.AIRTABLE_TOKEN !== process.env.AIRTABLE_TOKEN.trimStart()
+      : false,
+    hasTrailingSpace: process.env.AIRTABLE_TOKEN
+      ? process.env.AIRTABLE_TOKEN !== process.env.AIRTABLE_TOKEN.trimEnd()
+      : false,
+    chemin,
+  });
+
   const res = await fetch(`${API}${chemin}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${process.env.AIRTABLE_TOKEN}`,
-      'Content-Type': 'application/json',
       ...options.headers,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
   });
+
   if ((res.status === 429 || res.status >= 500) && tentative < 3) {
     await new Promise((r) => setTimeout(r, 500 * 2 ** tentative));
     return atFetch(chemin, options, tentative + 1);
   }
+
   const data = await res.json();
+
   if (!res.ok) {
-    const err = new Error(data?.error?.message || `Airtable ${res.status}`);
+    console.error('Erreur Airtable complète', {
+      status: res.status,
+      statusText: res.statusText,
+      data,
+      chemin,
+    });
+
+    const err = new Error(
+      data?.error?.message || `Airtable ${res.status}`
+    );
+
     err.status = res.status;
     throw err;
   }
+
   return data;
 }
 
